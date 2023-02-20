@@ -1,5 +1,5 @@
 import { Client } from 'boardgame.io/react';
-import { Werewolf } from './Game';
+import { Werewolf } from './components/Game';
 import { Board } from './Board';
 import {Local} from "boardgame.io/multiplayer";
 
