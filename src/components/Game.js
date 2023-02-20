@@ -93,6 +93,15 @@ const endIf = (G, ctx) => {
         return { winner: 'werewolves' };
     }
 };
+
+// Define a helper function to assign roles randomly to players
+const assignRoles = (numPlayers) => {
+    const shuffledRoles = roles.sort(() => 0.5 - Math.random());
+    return Array(numPlayers)
+        .fill()
+        .map((_, i) => shuffledRoles[i % shuffledRoles.length]);
+};
+
 // Export the Werewolf game object
 export const Werewolf = {
     name: 'werewolf',
