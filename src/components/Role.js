@@ -2,10 +2,10 @@
 
 import React from 'react';
 
-function Role() {
+function Role({role}) {
     return (
         <div className="role">
-            Villager
+            <p>{role}</p>
         </div>
     );
 }
