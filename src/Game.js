@@ -1,13 +1,16 @@
 import { INVALID_MOVE } from 'boardgame.io/core';
 
 export const WerewolfGame = {
-    setup: () => ({
-        players: [],
+    setup: (G, ctx) => ({
+        players: ctx.playOrder.map((player) => ({
+            name: player,
+            role: null,
+        })),
         phase: 'lobby',
-        werewolf: [],
-        seer: '',
-        victim: '',
-        vote: [],
+        werewolfTargets: [],
+        seerTarget: null,
+        doctorTarget: null,
+        eliminatedPlayer: null,
     }),
 
     moves: {
