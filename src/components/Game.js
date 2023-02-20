@@ -1,81 +1,117 @@
-const Werewolf = {
-    setup: (ctx) => {
-        const playerRoles = assignRoles(ctx.numPlayers);
-        return {
-            players: Array(ctx.numPlayers).fill(null),
-            playerRoles,
-            revealedRoles: Array(ctx.numPlayers).fill(false),
-            votes: Array(ctx.numPlayers).fill(0),
-            phase: "day",
-            currentTurn: 0,
-        };
+// Define initial game state
+const initialGameState = (numPlayers) => ({
+    players: Array(numPlayers).fill(null),
+    currentPlayer: 0,
+    werewolf: null,
+    seer: null,
+    doctor: null,
+});
+
+// Define the available roles for players
+const roles = ['werewolf', 'seer', 'doctor', 'villager'];
+
+// Define the moves that can be made during the game
+const moves = {
+    werewolfSelectVictim(G, ctx, playerIndex, targetIndex) {
+        return G.players[playerIndex] === 'werewolf' ? { ...G, victimIndex: targetIndex } : G;
     },
-
-    moves: {
-        vote: (G, ctx, voteTarget) => {
-            const playerID = ctx.currentPlayer;
-            G.votes[voteTarget]++;
-            G.players[playerID].voted = true;
-            ctx.events.endTurn();
-        },
-        revealRole: (G, ctx, playerID) => {
-            G.revealedRoles[playerID] = true;
-            ctx.events.endTurn();
-        },
+    seerInspectRole(G, ctx, playerIndex, targetIndex) {
+        return G.players[playerIndex] === 'seer' ? { ...G, seerInspectIndex: targetIndex } : G;
     },
-
-    flow: {
-        startingPhase: "day",
-
-        phases: {
-            day: {
-                turn: {
-                    order: {
-                        first: (G, ctx) => ctx.currentPlayer,
-                        next: (G, ctx) => (ctx.currentPlayer + 1) % ctx.numPlayers,
-                    },
-                },
-                movesPerTurn: 1,
-                onTurnBegin: (G, ctx) => {
-                    G.currentTurn++;
-                    G.players[ctx.currentPlayer].voted = false;
-                    if (G.currentTurn > 1) {
-                        checkIfGameOver(G, ctx);
-                    }
-                },
-                endTurnIf: (G, ctx) => {
-                    if (G.players.every((player) => player.voted)) {
-                        return { next: "night" };
-                    }
-                },
-            },
-
-            night: {
-                turn: {
-                    order: {
-                        first: (G, ctx) => ctx.currentPlayer,
-                        next: (G, ctx) => (ctx.currentPlayer + 1) % ctx.numPlayers,
-                    },
-                },
-                movesPerTurn: 1,
-                onTurnBegin: (G, ctx) => {
-                    G.players[ctx.currentPlayer].voted = false;
-                },
-                endTurnIf: (G, ctx) => {
-                    if (G.players.every((player) => player.voted)) {
-                        return { next: "day" };
-                    }
-                },
-            },
-        },
+    doctorProtectPlayer(G, ctx, playerIndex, targetIndex) {
+        return G.players[playerIndex] === 'doctor' ? { ...G, protectedIndex: targetIndex } : G;
     },
-
-    endIf: (G, ctx) => {
-        if (G.phase === "gameover") {
-            return { winner: checkWinCondition(G) };
+    voteToLynch(G, ctx, playerIndex, targetIndex) {
+        if (!G.votes[targetIndex]) {
+            G.votes[targetIndex] = [];
         }
-    },
+        G.votes[targetIndex].push(playerIndex);
+        return G;
+    }
 };
 
 
-export default Werewolf;
+const flow = {
+    startingPhase: 'night',
+    phases: {
+        night: {
+            moves: {
+                werewolfSelectVictim: moves.werewolfSelectVictim,
+                seerInspectRole: moves.seerInspectRole,
+                doctorProtectPlayer: moves.doctorProtectPlayer
+            },
+            endPhaseIf: (G, ctx) => seerInspected(G, ctx) && doctorProtected(G) && werewolfVictimSelected(G),
+            next: 'day'
+        },
+        day: {
+            moves: {
+                voteToLynch: moves.voteToLynch
+            },
+            endPhaseIf: (G, ctx) => {
+                const votes = Object.values(G.votes);
+                const voteCounts = votes.reduce((counts, vote) => {
+                    if (vote !== null) {
+                        counts[vote] = (counts[vote] || 0) + 1;
+                    }
+                    return counts;
+                }, {});
+
+                const maxVotes = Math.max(...Object.values(voteCounts));
+                const hasTie = Object.values(voteCounts).filter(count => count === maxVotes).length > 1;
+                const hasMajority = maxVotes >= Math.ceil(ctx.numPlayers / 2);
+
+                return hasTie || hasMajority;
+            },
+            next: 'night'
+        }
+    }
+};
+
+function seerInspected(G, ctx) {
+    return Object.keys(G.seerInspections).length === ctx.numPlayers - 1;
+}
+
+function doctorProtected(G) {
+    return G.doctorProtection !== null;
+}
+
+function werewolfVictimSelected(G) {
+    return G.werewolfVictim !== null;
+}
+
+const endIf = (G, ctx) => {
+    const numWerewolves = G.players.filter((player) => player.role === 'werewolf').length;
+    const numVillagers = G.players.length - numWerewolves;
+
+    // If there are no werewolves left, the villagers win
+    if (numWerewolves === 0) {
+        return { winner: 'villagers' };
+    }
+
+    // If the number of werewolves is greater than or equal to the number of villagers, the werewolves win
+    if (numWerewolves >= numVillagers) {
+        return { winner: 'werewolves' };
+    }
+};
+// Export the Werewolf game object
+export const Werewolf = {
+    name: 'werewolf',
+    setup: (ctx) => {
+        const roles = assignRoles(ctx.numPlayers);
+        return {
+            players: Array(ctx.numPlayers).fill(null).map((_, i) => ({ role: roles[i] })),
+            currentPlayer: 0,
+            werewolf: null,
+            seer: null,
+            doctor: null,
+            seerInspections: {},
+            werewolfVictim: null,
+            doctorProtection: null,
+            votes: {}
+        }
+    },
+    moves: moves,
+    flow: flow,
+    endIf: endIf,
+};
+
